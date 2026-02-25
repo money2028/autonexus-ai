@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoNexus AI - 数据分析面板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #334155; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 2rem; border-radius: 1rem; margin-bottom: 2rem; }
+        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .subtitle { opacity: 0.9; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border-left: 5px solid; }
+        .stat-card h3 { font-size: 0.9rem; text-transform: uppercase; color: #64748b; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .stat-change { font-size: 0.9rem; }
+        .change-up { color: #10b981; }
+        .change-down { color: #ef4444; }
+        .chart-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 2rem; margin-bottom: 2rem; }
+        .chart-container { background: white; padding: 1.5rem; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .chart-container h2 { font-size: 1.3rem; margin-bottom: 1rem; color: #1e3a8a; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 1rem; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f1f5f9; font-weight: 600; color: #475569; }
+        tr:hover { background: #f8fafc; }
+        .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-error { background: #fee2e2; color: #991b1b; }
+        .time-filter { display: flex; justify-content: flex-end; gap: 1rem; margin-bottom: 1.5rem; }
+        .time-filter button { background: white; border: 1px solid #cbd5e1; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; }
+        .time-filter button.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+        footer { text-align: center; margin-top: 3rem; color: #64748b; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AutoNexus AI 数据分析面板</h1>
+            <p class="subtitle">实时监控 AI 代理运营表现 · 上次更新: <span id="update-time">--:--:--</span></p>
+        </header>
+
+        <div class="time-filter">
+            <button class="active" onclick="setTimeRange('today')">今日</button>
+            <button onclick="setTimeRange('week')">本周</button>
+            <button onclick="setTimeRange('month')">本月</button>
+            <button onclick="setTimeRange('all')">全部</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card" style="border-color: #3b82f6;">
+                <h3>对话总量</h3>
+                <div class="stat-value" id="total-conversations">1,842</div>
+                <div class="stat-change change-up">↑ 12% 较昨日</div>
+            </div>
+            <div class="stat-card" style="border-color: #10b981;">
+                <h3>平均响应时间</h3>
+                <div class="stat-value" id="avg-response-time">1.2s</div>
+                <div class="stat-change change-down">↓ 0.3s 较昨日</div>
+            </div>
+            <div class="stat-card" style="border-color: #f59e0b;">
+                <h3>用户满意度</h3>
+                <div class="stat-value" id="satisfaction-rate">94%</div>
+                <div class="stat-change change-up">↑ 2% 较昨日</div>
+            </div>
+            <div class="stat-card" style="border-color: #8b5cf6;">
+                <h3>转化率</h3>
+                <div class="stat-value" id="conversion-rate">18%</div>
+                <div class="stat-change change-up">↑ 3% 较昨日</div>
+            </div>
+        </div>
+
+        <div class="chart-row">
+            <div class="chart-container">
+                <h2>对话量趋势</h2>
+                <canvas id="conversationChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>意图分布</h2>
+                <canvas id="intentChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-row">
+            <div class="chart-container">
+                <h2>渠道表现</h2>
+                <canvas id="channelChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>响应时间分布</h2>
+                <canvas id="responseTimeChart"></canvas>
+            </div>
+        </div>
+
+        <h2 style="margin: 2rem 0 1rem; color: #1e3a8a;">最近对话</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>用户</th>
+                    <th>渠道</th>
+                    <th>意图</th>
+                    <th>响应时间</th>
+                    <th>满意度</th>
+                </tr>
+            </thead>
+            <tbody id="recent-conversations">
+                <!-- 数据通过JS动态生成 -->
+            </tbody>
+        </table>
+
+        <footer>
+            <p>AutoNexus AI 数据分析面板 · 数据每5分钟自动更新 · <button onclick="refreshData()" style="background:none;border:none;color:#3b82f6;cursor:pointer;">手动刷新</button></p>
+        </footer>
+    </div>
+
+    <script>
+        // 模拟数据
+        const mockData = {
+            totalConversations: 1842,
+            avgResponseTime: 1.2,
+            satisfactionRate: 94,
+            conversionRate: 18,
+            conversationTrend: [65, 78, 92, 85, 98, 112, 105],
+            intents: [
+                { label: '咨询', value: 45 },
+                { label: '售后', value: 25 },
+                { label: '价格', value: 15 },
+                { label: '功能', value: 10 },
+                { label: '其他', value: 5 }
+            ],
+            channels: [
+                { label: 'Telegram', value: 40 },
+                { label: '网站聊天', value: 30 },
+                { label: '微信', value: 20 },
+                { label: '邮件', value: 10 }
+            ],
+            responseTimes: [
+                { range: '<1s', count: 60 },
+                { range: '1-2s', count: 25 },
+                { range: '2-5s', count: 10 },
+                { range: '>5s', count: 5 }
+            ],
+            recentConversations: [
+                { time: '2026-02-25 20:38:12', user: '用户A', channel: 'Telegram', intent: '价格咨询', response: '1.1s', satisfaction: '好评' },
+                { time: '2026-02-25 20:35:44', user: '用户B', channel: '网站聊天', intent: '功能询问', response: '1.5s', satisfaction: '中评' },
+                { time: '2026-02-25 20:32:09', user: '用户C', channel: '微信', intent: '售后问题', response: '2.0s', satisfaction: '好评' },
+                { time: '2026-02-25 20:28:33', user: '用户D', channel: 'Telegram', intent: '咨询', response: '0.8s', satisfaction: '好评' },
+                { time: '2026-02-25 20:25:17', user: '用户E', channel: '邮件', intent: '合作', response: '5.2s', satisfaction: '差评' }
+            ]
+        };
+
+        // 更新统计卡片
+        function updateStats() {
+            document.getElementById('total-conversations').textContent = mockData.totalConversations.toLocaleString();
+            document.getElementById('avg-response-time').textContent = mockData.avgResponseTime + 's';
+            document.getElementById('satisfaction-rate').textContent = mockData.satisfactionRate + '%';
+            document.getElementById('conversion-rate').textContent = mockData.conversionRate + '%';
+            document.getElementById('update-time').textContent = new Date().toLocaleTimeString('zh-CN');
+        }
+
+        // 渲染图表
+        function renderCharts() {
+            // 对话量趋势（折线图）
+            new Chart(document.getElementById('conversationChart'), {
+                type: 'line',
+                data: {
+                    labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                    datasets: [{
+                        label: '对话量',
+                        data: mockData.conversationTrend,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            // 意图分布（饼图）
+            new Chart(document.getElementById('intentChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: mockData.intents.map(i => i.label),
+                    datasets: [{
+                        data: mockData.intents.map(i => i.value),
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
+                    }]
+                },
+                options: { responsive: true }
+            });
+
+            // 渠道表现（条形图）
+            new Chart(document.getElementById('channelChart'), {
+                type: 'bar',
+                data: {
+                    labels: mockData.channels.map(c => c.label),
+                    datasets: [{
+                        label: '对话量',
+                        data: mockData.channels.map(c => c.value),
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            // 响应时间分布（柱状图）
+            new Chart(document.getElementById('responseTimeChart'), {
+                type: 'bar',
+                data: {
+                    labels: mockData.responseTimes.map(r => r.range),
+                    datasets: [{
+                        label: '百分比',
+                        data: mockData.responseTimes.map(r => r.count),
+                        backgroundColor: '#10b981'
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+            });
+        }
+
+        // 渲染最近对话表格
+        function renderRecentConversations() {
+            const tbody = document.getElementById('recent-conversations');
+            tbody.innerHTML = mockData.recentConversations.map(conv => `
+                <tr>
+                    <td>${conv.time}</td>
+                    <td>${conv.user}</td>
+                    <td><span class="badge badge-success">${conv.channel}</span></td>
+                    <td>${conv.intent}</td>
+                    <td>${conv.response}</td>
+                    <td><span class="badge ${conv.satisfaction === '好评' ? 'badge-success' : conv.satisfaction === '中评' ? 'badge-warning' : 'badge-error'}">${conv.satisfaction}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // 时间范围筛选
+        function setTimeRange(range) {
+            document.querySelectorAll('.time-filter button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            // 此处可实际筛选数据
+            console.log('切换到范围:', range);
+        }
+
+        // 刷新数据
+        function refreshData() {
+            // 模拟数据更新
+            mockData.totalConversations += Math.floor(Math.random() * 10);
+            mockData.avgResponseTime = (Math.random() * 0.5 + 1).toFixed(1);
+            updateStats();
+            alert('数据已刷新！');
+        }
+
+        // 初始化
+        updateStats();
+        renderCharts();
+        renderRecentConversations();
+        // 每30秒自动更新
+        setInterval(() => {
+            mockData.totalConversations += 1;
+            updateStats();
+        }, 30000);
+    </script>
+</body>
+</html>
